@@ -4,7 +4,9 @@ export const PREVIEW_QUERY = `
 SELECT jsonb_build_object(
   'id', coalesce(nullif(pq.source_question_id,''), qs.source_question_id, pq.question_version_id::text),
   'exam', CASE
+    WHEN p.track_code = 'TS-PG' THEN 'TS PGLCET'
     WHEN p.track_code LIKE 'TS-%' THEN 'TS LAWCET'
+    WHEN p.track_code = 'AP-PG' THEN 'AP PGLCET'
     WHEN p.track_code LIKE 'AP-%' THEN 'AP LAWCET'
     ELSE p.track_code
   END,
@@ -30,7 +32,7 @@ SELECT jsonb_build_object(
     WHEN 'legal-aptitude' THEN 'C'
     ELSE upper(left(coalesce(pq.section_code,'?'), 1))
   END,
-  'part_name', CASE lower(coalesce(pq.section_code,''))
+  'part_name', CASE WHEN p.track_code LIKE '%-PG' THEN upper(replace(coalesce(pq.section_code, 'unclassified'), '-', ' ')) ELSE CASE lower(coalesce(pq.section_code,''))
     WHEN 'part-a' THEN 'General Knowledge & Mental Ability'
     WHEN 'general-knowledge-mental-ability' THEN 'General Knowledge & Mental Ability'
     WHEN 'part-b' THEN 'Current Affairs'
@@ -38,7 +40,7 @@ SELECT jsonb_build_object(
     WHEN 'part-c' THEN 'Aptitude for the Study of Law'
     WHEN 'legal-aptitude' THEN 'Aptitude for the Study of Law'
     ELSE coalesce(nullif(pq.section_code,''), 'Unclassified')
-  END,
+  END END,
   'topic_code', coalesce(t.code, ''),
   'topic', coalesce(nullif(t.name_en,''), 'Unclassified'),
   'question_en', qv.stem_en,

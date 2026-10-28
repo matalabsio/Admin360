@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import BankChooser from './BankChooser'
 import QuestionPreview from './QuestionPreview'
 import { auditConvertedFile, validatePack } from '@/lib/clientAudit'
 
@@ -20,6 +21,7 @@ export default function AdminApp() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [page, setPage] = useState('Overview')
+  const [examLevel, setExamLevel] = useState(null)
   const [file, setFile] = useState(null)
   const [report, setReport] = useState(null)
   const [format, setFormat] = useState('csv')
@@ -58,6 +60,7 @@ export default function AdminApp() {
     try {
       await api('/logout', { method: 'POST' })
       setSession('signed-out')
+      setExamLevel(null)
       setReport(null)
     } catch (err) {
       setError(err.message)
@@ -107,10 +110,21 @@ export default function AdminApp() {
     )
   }
 
+  if (!examLevel) {
+    return <BankChooser onSelect={setExamLevel} onLogout={logout} />
+  }
+
+  const bankLabel = ({
+    'ts-ug': 'TS UG LAWCET',
+    'ap-ug': 'AP UG LAWCET',
+    'ts-pg': 'TS PG LAWCET',
+    'ap-pg': 'AP PG LAWCET',
+  })[examLevel] || examLevel
+
   return (
     <div className="shell">
       <aside>
-        <div className="brand">CHATTAM <span>360</span><small>Admin</small></div>
+        <div className="brand">CHATTAM <span>360</span><small>Admin · {bankLabel}</small></div>
         <nav aria-label="Admin navigation">
           {pages.map(item => (
             <button key={item} className={page === item ? 'active' : ''} aria-current={page === item ? 'page' : undefined} onClick={() => { setPage(item); setError('') }}>
@@ -118,19 +132,22 @@ export default function AdminApp() {
             </button>
           ))}
         </nav>
-        <button className="logout" onClick={logout} disabled={busy}>Sign out</button>
+        <div className="aside-foot">
+          <button className="ghost aside-link" onClick={() => { setExamLevel(null); setPage('Overview') }}>Change bank</button>
+          <button className="ghost aside-link" onClick={logout} disabled={busy}>Sign out</button>
+        </div>
       </aside>
       <main className="workspace">
         <header>
-          <span>Question intelligence</span>
-          <span>Director · Neon catalog</span>
+          <span>Question intelligence · {bankLabel}</span>
+          <span>Neon catalog</span>
         </header>
         <div className="content">
           <p className="eyebrow">Curator workspace</p>
           <h1>{page}</h1>
           {error && <p className="error" role="alert">{error}</p>}
           {page !== 'Import & review' ? (
-            <QuestionPreview page={page} openPage={setPage} />
+            <QuestionPreview key={examLevel} page={page} openPage={setPage} examLevel={examLevel} />
           ) : (
             <>
               <p className="muted">Audit converted question data or validate an existing format-1 pack in the browser. This does not write to Neon.</p>

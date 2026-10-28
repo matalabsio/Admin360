@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import RepetitionPreview from './RepetitionPreview'
 import TopicInsights from './TopicInsights'
+import { matchesBank } from '@/lib/bankMatch'
 import { findRepetitions } from '@/lib/repetition'
 
 const paperKey = q => `${q.exam} · ${q.course} · ${q.year} · Shift ${q.shift}`
 const countBy = (items, key) => Object.entries(items.reduce((result, item) => { const value = key(item) || 'Unclassified'; result[value] = (result[value] || 0) + 1; return result }, {})).sort((a,b) => b[1] - a[1])
 
-export default function QuestionPreview({ page, openPage }) {
+export default function QuestionPreview({ page, openPage, examLevel }) {
   const [questions, setQuestions] = useState(null)
   const [source, setSource] = useState('files')
   const [error, setError] = useState('')
@@ -24,9 +25,9 @@ export default function QuestionPreview({ page, openPage }) {
   const [selected, setSelected] = useState(null)
   useEffect(() => {
     const controller = new AbortController()
-    fetch('/api/admin/preview/questions', { credentials:'same-origin', signal:controller.signal }).then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Unable to load questions'); setQuestions(result.questions); setSource(result.source || 'files') }).catch(err => { if (err.name !== 'AbortError') setError(err.message) })
+    fetch('/api/admin/preview/questions', { credentials:'same-origin', signal:controller.signal }).then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Unable to load questions'); setQuestions(result.questions.filter(q => matchesBank(q.track_code, examLevel))); setSource(result.source || 'files') }).catch(err => { if (err.name !== 'AbortError') setError(err.message) })
     return () => controller.abort()
-  }, [])
+  }, [examLevel])
   const sourceBanner = source === 'database'
     ? { title: 'Database catalog', detail: 'Imported papers from Neon · Topic codes are empty until review assigns taxonomy.' }
     : { title: 'Source preview', detail: 'Converted OCR data · Answers and tags require review against the original papers.' }
@@ -35,6 +36,15 @@ export default function QuestionPreview({ page, openPage }) {
   const filtered = useMemo(() => (questions || []).filter(q => (year === 'All years' || String(q.year) === year) && (course === 'All courses' || q.course === course) && (topic === 'All topics' || (q.topic || 'Unclassified') === topic) && (topicCode === null || String(q.topic_code || '—') === topicCode) && (section === 'All sections' || q.part_name === section) && (shift === 'All shifts' || String(q.shift) === shift) && (paper === 'All papers' || paperKey(q) === paper) && (match === 'All questions' || matchTags.get(q)?.has(match))), [questions, year, course, topic, topicCode, section, shift, paper, match, matchTags])
   if (error) return <section className="panel"><h2>Question data unavailable</h2><p>{error}</p><p>Check ADMIN_DATABASE_URL in the Admin server env, then restart the Next.js app.</p></section>
   if (!questions) return <section className="panel" role="status">Loading question data…</section>
+  if (questions.length === 0) {
+    return (
+      <section className="panel">
+        <h2>No papers in this bank yet</h2>
+        <p>Neon has no imported questions for this bank yet.</p>
+        <p className="muted">Import papers for this level, then reopen the bank.</p>
+      </section>
+    )
+  }
   const papers = countBy(questions, paperKey), topics = countBy(questions, q => q.topic), years = countBy(questions, q => String(q.year)), courses = countBy(questions, q => q.course)
   const pages = Math.max(1, Math.ceil(filtered.length / 12)), pageNumber = Math.min(current, pages)
   const reset = fn => event => { fn(event.target.value); setCurrent(1); setSelected(null) }
